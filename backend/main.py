@@ -24,7 +24,7 @@ from auth import create_access_token, get_current_user, get_password_hash, verif
 from chunker import chunk_text
 from embedder import embed_text, embed_query, embed_batch
 from vector_store import store_chunks, search_memories as vector_search, delete_memory_chunks
-from metadata_store import init_db, create_memory, get_all_memories, get_memory_by_id, delete_memory
+from metadata_store import init_db, create_memory, get_all_memories, get_memory_by_id, delete_memory, get_user_by_username, create_user
 from extractors import extract_url, extract_pdf, extract_youtube
 
 load_dotenv()

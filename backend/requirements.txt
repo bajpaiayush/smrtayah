@@ -29,4 +29,3 @@ yt-dlp==2024.11.18
 pypdf==4.3.1
 
 # File uploads
-python-multipart==0.0.12
