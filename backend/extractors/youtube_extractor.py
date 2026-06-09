@@ -9,7 +9,10 @@ are disabled or unavailable.
 """
 
 import re
+import os
 from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound
+import yt_dlp
+import google.generativeai as genai
 
 
 def _parse_video_id(url: str) -> str:
@@ -63,6 +66,64 @@ def _fetch_title(video_id: str) -> str:
     except Exception:
         pass
     return f"YouTube Video ({video_id})"
+
+
+def _generate_transcript_with_gemini(url: str, video_id: str) -> str:
+    """Fallback method using yt-dlp to download audio and Gemini to transcribe."""
+    # Ensure /tmp directory exists
+    os.makedirs("/tmp", exist_ok=True)
+    audio_path = f"/tmp/{video_id}.m4a"
+    
+    # 1. Download Audio
+    ydl_opts = {
+        'format': 'm4a/bestaudio/best',
+        'outtmpl': audio_path,
+        'quiet': True,
+        'no_warnings': True,
+    }
+    
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
+    except Exception as e:
+        raise ValueError(f"Failed to download audio: {str(e)}")
+        
+    if not os.path.exists(audio_path):
+        raise ValueError("Audio download failed silently.")
+
+    # 2. Upload to Gemini
+    uploaded_file = None
+    try:
+        # Configure is called globally in main.py, but just in case
+        if "GEMINI_API_KEY" in os.environ:
+            genai.configure(api_key=os.environ["GEMINI_API_KEY"])
+            
+        uploaded_file = genai.upload_file(path=audio_path, mime_type="audio/mp4")
+        
+        # 3. Transcribe
+        gemini_model_name = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+        model = genai.GenerativeModel(gemini_model_name)
+        prompt = "Provide a clean, accurate transcript of this audio. Do not add any conversational filler, markdown formatting, or descriptive brackets. Just return the spoken text."
+        response = model.generate_content([uploaded_file, prompt])
+        content = response.text.strip()
+        
+    except Exception as e:
+        raise ValueError(f"Gemini transcription failed: {str(e)}")
+        
+    finally:
+        # 4. Cleanup
+        if uploaded_file:
+            try:
+                genai.delete_file(uploaded_file.name)
+            except Exception:
+                pass
+        if os.path.exists(audio_path):
+            os.remove(audio_path)
+            
+    if not content or len(content) < 50:
+        raise ValueError("Fallback transcription succeeded, but returned no meaningful text.")
+        
+    return content
 
 
 def extract_youtube(url: str) -> dict:
@@ -124,16 +185,22 @@ def extract_youtube(url: str) -> dict:
 
         entries = transcript.fetch()
 
-    except TranscriptsDisabled:
-        raise ValueError(
-            "Transcripts are disabled for this video by the creator. "
-            "Try a different video or use the Manual tab to paste content."
-        )
-    except NoTranscriptFound:
-        raise ValueError(
-            "No transcript found for this video. "
-            "It may not have any captions available."
-        )
+    except (TranscriptsDisabled, NoTranscriptFound):
+        # Trigger Fallback
+        try:
+            content = _generate_transcript_with_gemini(url, video_id)
+            return {
+                "title": title,
+                "content": content,
+                "source_url": url,
+                "video_id": video_id,
+                "language": "en-gemini-fallback",
+                "segment_count": 1,
+            }
+        except Exception as e:
+            raise ValueError(
+                f"Transcripts are disabled, and the AI fallback transcriber also failed: {str(e)}"
+            )
     except ValueError:
         raise  # Re-raise our own ValueErrors
     except Exception as e:
