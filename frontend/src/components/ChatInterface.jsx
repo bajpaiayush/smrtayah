@@ -116,7 +116,7 @@ function Bubble({ msg }) {
 }
 
 // ── Main component ────────────────────────────────────────────
-export default function Recall({ api, memories }) {
+export default function Recall({ api, token, memories }) {
   const [msgs, setMsgs]     = useState([])
   const [input, setInput]   = useState('')
   const [busy, setBusy]     = useState(false)
@@ -137,7 +137,10 @@ export default function Recall({ api, memories }) {
     try {
       const res = await fetch(`${api}/query`, {
         method:'POST',
-        headers:{ 'Content-Type':'application/json' },
+        headers:{ 
+          'Content-Type':'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ question:q, top_k:5, content_type_filter: filter||null }),
       })
       if (!res.ok) throw new Error()

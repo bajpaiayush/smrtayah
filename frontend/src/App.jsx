@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import Auth from './components/Auth'
 import Recall from './components/ChatInterface'
 import Capture from './components/SaveMemory'
 import Archive from './components/MemoryBrowser'
@@ -47,19 +48,42 @@ function useToasts() {
 }
 
 export default function App() {
+  const [token, setToken] = useState(localStorage.getItem('smrtayah_token') || null)
   const [view, setView] = useState('recall')
   const [memories, setMemories] = useState([])
   const { toasts, push } = useToasts()
 
   const loadMemories = async () => {
+    if (!token) return
     try {
-      const r = await fetch(`${API}/memories`)
+      const r = await fetch(`${API}/memories`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (r.status === 401) {
+        handleLogout()
+        return
+      }
       const d = await r.json()
       setMemories(d.memories || [])
     } catch { /* backend offline */ }
   }
 
-  useEffect(() => { loadMemories() }, [])
+  useEffect(() => { loadMemories() }, [token])
+
+  const handleLogin = (newToken) => {
+    setToken(newToken)
+    localStorage.setItem('smrtayah_token', newToken)
+  }
+
+  const handleLogout = () => {
+    setToken(null)
+    localStorage.removeItem('smrtayah_token')
+    setMemories([])
+  }
+
+  if (!token) {
+    return <Auth onLogin={handleLogin} api={API} />
+  }
 
   return (
     <div className="shell">
@@ -96,6 +120,9 @@ export default function App() {
         <div className="sidebar-spacer" />
 
         <div className="sidebar-footer">
+          <button onClick={handleLogout} className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', marginBottom: 16 }}>
+            Logout
+          </button>
           <div className="sidebar-footer-text">
             v0.1.0 — Phase I<br />
             RAG pipeline active
@@ -105,9 +132,9 @@ export default function App() {
 
       {/* Main */}
       <main className="main">
-        {view === 'recall'  && <Recall  api={API} memories={memories} />}
-        {view === 'capture' && <Capture api={API} onSaved={() => { loadMemories(); push('Memory indexed successfully', 'ok') }} />}
-        {view === 'archive' && <Archive api={API} memories={memories} onDeleted={() => { loadMemories(); push('Memory removed', 'ok') }} onRefresh={loadMemories} />}
+        {view === 'recall'  && <Recall  api={API} token={token} memories={memories} />}
+        {view === 'capture' && <Capture api={API} token={token} onSaved={() => { loadMemories(); push('Memory indexed successfully', 'ok') }} />}
+        {view === 'archive' && <Archive api={API} token={token} memories={memories} onDeleted={() => { loadMemories(); push('Memory removed', 'ok') }} onRefresh={loadMemories} />}
       </main>
 
       {/* Toasts */}

@@ -16,6 +16,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
 from dotenv import load_dotenv
+from fastapi.security import OAuth2PasswordRequestForm
+from fastapi import Depends
+
+from auth import create_access_token, get_current_user, get_password_hash, verify_password
 
 from chunker import chunk_text
 from embedder import embed_text, embed_query, embed_batch
@@ -90,11 +94,39 @@ class QueryResponse(BaseModel):
 
 
 # ──────────────────────────────────────────────
+# Auth Endpoints
+# ──────────────────────────────────────────────
+
+class UserCreate(BaseModel):
+    username: str
+    password: str
+
+@app.post("/auth/signup")
+async def signup(user: UserCreate):
+    existing = get_user_by_username(user.username)
+    if existing:
+        raise HTTPException(status_code=400, detail="Username already registered")
+    hashed_pw = get_password_hash(user.password)
+    user_id = create_user(user.username, hashed_pw)
+    return {"message": "User created successfully", "user_id": user_id}
+
+
+@app.post("/auth/login")
+async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    user = get_user_by_username(form_data.username)
+    if not user or not verify_password(form_data.password, user["password_hash"]):
+        raise HTTPException(status_code=401, detail="Incorrect username or password")
+    
+    access_token = create_access_token(data={"sub": user["id"]})
+    return {"access_token": access_token, "token_type": "bearer"}
+
+
+# ──────────────────────────────────────────────
 # Endpoints
 # ──────────────────────────────────────────────
 
 @app.post("/save", response_model=SaveResponse)
-async def save_memory(req: SaveRequest):
+async def save_memory(req: SaveRequest, current_user: dict = Depends(get_current_user)):
     """
     Ingest content: chunk → embed → store in ChromaDB + Neon.
     """
@@ -111,6 +143,7 @@ async def save_memory(req: SaveRequest):
 
     # 3. Save metadata to Neon first (to get UUID)
     memory_id = create_memory(
+        user_id=current_user["id"],
         title=req.title,
         raw_text=req.content,
         content_type=req.content_type,
@@ -137,7 +170,7 @@ async def save_memory(req: SaveRequest):
 
 
 @app.post("/query", response_model=QueryResponse)
-async def query_memories(req: QueryRequest):
+async def query_memories(req: QueryRequest, current_user: dict = Depends(get_current_user)):
     """
     Ask a question: embed → semantic search → Gemini synthesis → cited answer.
     """
@@ -168,7 +201,7 @@ async def query_memories(req: QueryRequest):
     for r in results:
         mid = r["memory_id"]
         if mid not in seen_memory_ids:
-            mem = get_memory_by_id(mid)
+            mem = get_memory_by_id(current_user["id"], mid)
             if mem:
                 sources.append(
                     SourceCitation(
@@ -180,8 +213,10 @@ async def query_memories(req: QueryRequest):
                 )
                 seen_memory_ids.add(mid)
 
+        mem = get_memory_by_id(current_user["id"], mid)
+        title = mem["title"] if mem else mid
         context_parts.append(
-            f'[Memory: "{get_memory_by_id(mid)["title"] if mid in seen_memory_ids else mid}"]\n{r["chunk_text"]}'
+            f'[Memory: "{title}"]\n{r["chunk_text"]}'
         )
 
     context = "\n\n---\n\n".join(context_parts)
@@ -210,30 +245,33 @@ Instructions:
 
 
 @app.get("/memories")
-async def list_memories(limit: int = 50, offset: int = 0):
+async def list_memories(limit: int = 50, offset: int = 0, current_user: dict = Depends(get_current_user)):
     """List all saved memories (without raw text)."""
-    memories = get_all_memories(limit=limit, offset=offset)
+    memories = get_all_memories(current_user["id"], limit=limit, offset=offset)
     return {"memories": memories, "count": len(memories)}
 
 
 @app.get("/memories/{memory_id}")
-async def get_memory(memory_id: str):
+async def get_memory(memory_id: str, current_user: dict = Depends(get_current_user)):
     """Get a single memory by ID with full text."""
-    memory = get_memory_by_id(memory_id)
+    memory = get_memory_by_id(current_user["id"], memory_id)
     if not memory:
         raise HTTPException(status_code=404, detail="Memory not found")
     return memory
 
 
 @app.delete("/memories/{memory_id}")
-async def remove_memory(memory_id: str):
+async def remove_memory(memory_id: str, current_user: dict = Depends(get_current_user)):
     """Delete a memory from both Neon and ChromaDB."""
+    # We must ensure the memory belongs to the user before deleting from ChromaDB
+    mem = get_memory_by_id(current_user["id"], memory_id)
+    if not mem:
+        raise HTTPException(status_code=404, detail="Memory not found")
+        
     # Delete from ChromaDB first
     delete_memory_chunks(memory_id)
     # Delete from Neon
-    deleted = delete_memory(memory_id)
-    if not deleted:
-        raise HTTPException(status_code=404, detail="Memory not found")
+    delete_memory(current_user["id"], memory_id)
     return {"message": "Memory deleted successfully", "memory_id": memory_id}
 
 

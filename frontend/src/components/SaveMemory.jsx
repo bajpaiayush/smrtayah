@@ -11,10 +11,10 @@ const TYPES = [
 ]
 
 const TABS = [
-  { id: 'manual',  icon: '✍️',  label: 'Manual' },
-  { id: 'url',     icon: '🔗',  label: 'From URL' },
-  { id: 'pdf',     icon: '📄',  label: 'From PDF' },
-  { id: 'youtube', icon: '▶️',  label: 'YouTube' },
+  { id: 'manual',  label: 'Manual' },
+  { id: 'url',     label: 'From URL' },
+  { id: 'pdf',     label: 'From PDF' },
+  { id: 'youtube', label: 'YouTube' },
 ]
 
 // ── Small inline icons ────────────────────────────────────────
@@ -163,8 +163,7 @@ function PDFPanel({ onExtracted }) {
           style={{ display: 'none' }}
           onChange={e => handleFile(e.target.files[0])}
         />
-        <span className="drop-zone-icon">{file ? '📄' : '📂'}</span>
-        <div className="drop-zone-title">
+        <div className="drop-zone-title" style={{ marginTop: 12 }}>
           {file ? file.name : 'Drop PDF here or click to browse'}
         </div>
         <div className="drop-zone-sub">
@@ -405,7 +404,7 @@ function ReviewPanel({ extracted, form, setForm, loading, error, result, onSubmi
 }
 
 // ── Main Capture component ────────────────────────────────────
-export default function Capture({ api, onSaved }) {
+export default function Capture({ api, token, onSaved }) {
   const [tab, setTab]           = useState('manual')
   const [extracted, setExtracted] = useState(null)  // { title, content, source_url, content_type, meta }
   const [form, setForm]         = useState(EMPTY_FORM)
@@ -448,7 +447,10 @@ export default function Capture({ api, onSaved }) {
     try {
       const res = await fetch(`${api}/save`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({
           title:        form.title.trim(),
           content:      form.content.trim(),
@@ -509,7 +511,6 @@ export default function Capture({ api, onSaved }) {
             className={`ingest-tab ${tab === t.id ? 'active' : ''}`}
             onClick={() => { setTab(t.id); handleDiscard() }}
           >
-            <span className="tab-icon">{t.icon}</span>
             {t.label}
           </button>
         ))}

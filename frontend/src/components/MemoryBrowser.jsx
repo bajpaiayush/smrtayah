@@ -149,15 +149,18 @@ function MemCard({ mem, onDelete, onLoadFull }) {
 }
 
 // ── Main component ─────────────────────────────────────────────
-export default function Archive({ api, memories, onDeleted, onRefresh }) {
+export default function Archive({ api, token, memories, onDeleted, onRefresh }) {
   const [search,     setSearch]     = useState('')
   const [typeFilter, setTypeFilter] = useState('')
   const [fullData,   setFullData]   = useState({})
 
   const del = async id => {
     try {
-      const r = await fetch(`${api}/memories/${id}`, { method:'DELETE' })
-      if (r.ok) onDeleted?.()
+      const res = await fetch(`${api}/memories/${id}`, { 
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (res.ok) onDeleted?.()
     } catch {}
   }
 
@@ -165,9 +168,11 @@ export default function Archive({ api, memories, onDeleted, onRefresh }) {
   const loadFull = async id => {
     if (fullData[id]) return
     try {
-      const r = await fetch(`${api}/memories/${id}`)
-      if (r.ok) {
-        const d = await r.json()
+      const res = await fetch(`${api}/memories/${id}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (res.ok) {
+        const d = await res.json()
         setFullData(p => ({ ...p, [id]: d }))
       }
     } catch {}
