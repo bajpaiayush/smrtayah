@@ -1,0 +1,29 @@
+# Core
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+python-dotenv==1.0.1
+pydantic==2.10.3
+
+# Google Gemini (LLM + Embeddings)
+google-generativeai==0.8.3
+
+# Vector Database
+pgvector==0.3.6
+
+# Metadata Database (PostgreSQL)
+psycopg[binary]==3.2.3
+
+# Text Extraction
+beautifulsoup4==4.12.3
+requests==2.32.3
+pypdf2==3.0.1
+
+# YouTube transcripts (no ffmpeg / audio download required)
+youtube-transcript-api==0.6.3
+yt-dlp==2024.11.18
+
+# PDF (maintained fork of PyPDF2)
+pypdf==4.3.1
+
+# File uploads
+python-multipart==0.0.12

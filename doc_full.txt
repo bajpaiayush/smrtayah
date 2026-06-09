@@ -1,0 +1,213 @@
+Smrtaयः
+(स्मृतयः)
+Your AI Second Brain
+Save anything. Remember everything. Understand connections.
+Application Plan & Architecture Document
+Stack: Claude API  ·  voyage-2  ·  ChromaDB  ·  Neon PostgreSQL  ·  FastAPI  ·  React
+1. Project Overview
+Smrtayah is a full-stack AI application that acts as a personal second brain. Users can save any form of content — notes, articles, YouTube videos, podcasts, or PDFs — and later query all of it conversationally using natural language. The system uses Retrieval Augmented Generation (RAG) combined with an agentic AI loop to retrieve semantically relevant memories and synthesize intelligent, cited answers.
+The name Smrtayah comes from Sanskrit, meaning 'memories'. It reflects the core purpose of the application — to give users a persistent, intelligent memory layer that grows smarter over time.
+1.1 The Problem It Solves
+Every person saves content constantly — bookmarks, screenshots, notes, videos — but retrieval is broken. Search is keyword-based and fragile. Most saved content is never seen again. There is no tool today that lets you have a real conversation with your own saved knowledge.
+Smrtayah fixes this by converting everything you save into semantic vectors, stored in a vector database, and making it all queryable through a natural language interface powered by an AI agent.
+1.2 Core Capabilities
+Save any content: notes, URLs, PDFs, YouTube videos, podcast links
+Automatic processing: extract text, chunk, embed, and store everything
+Conversational retrieval: ask questions in plain English across all saved content
+Agentic reasoning: AI agent decides what to search, how to combine results, and synthesizes answers
+Source citations: every answer includes which memory it came from
+Metadata filtering: filter by content type, date, tags, or source
+2. Technology Stack
+Each technology in the stack was chosen deliberately for its specific role. Below is the full breakdown:
+Layer
+Technology
+Role
+Why This Choice
+AI / LLM
+Claude API (claude-sonnet-4)
+Answer generation + agentic reasoning
+Best tool_use support for building ReAct agents
+Embeddings
+voyage-2
+Convert text to semantic vectors
+Anthropic-backed, best quality embeddings
+Speech-to-Text
+OpenAI Whisper
+Transcribe YouTube / podcast audio
+Open source, runs locally, highly accurate
+Vector Database
+ChromaDB
+Store and search vectors by similarity
+Easy local setup, great Python SDK
+Metadata Database
+Neon (PostgreSQL)
+Store titles, dates, tags, sources
+Serverless PostgreSQL, free tier, DB branching
+Backend
+FastAPI (Python)
+REST API server
+Fast, async, auto-generates API docs
+Video Downloader
+yt-dlp
+Download YouTube audio for transcription
+Open source, stable, supports most platforms
+Web Scraper
+BeautifulSoup
+Extract text from article URLs
+Simple, reliable Python HTML parser
+PDF Parser
+PyPDF2
+Extract text from uploaded PDFs
+Lightweight, pure Python
+Frontend
+React
+User interface — chat + memory browser
+Component-based, industry standard
+3. System Architecture
+3.1 High-Level Flow
+The system has two primary flows: the ingestion pipeline (saving a memory) and the query pipeline (asking a question). Both flows share the same embedding and vector storage layer.
+Ingestion Pipeline
+User submits content (note text, URL, PDF, YouTube link)
+Backend identifies content type and routes to the correct extractor
+Extractor pulls raw text (scraper for URLs, Whisper for video/audio, PyPDF2 for PDFs)
+Text is chunked into 500-character pieces with 50-character overlap
+Each chunk is embedded using voyage-2 into a 1024-dimensional vector
+Vectors + chunk text are stored in ChromaDB
+Metadata (title, source, date, type, tags) is stored in Neon PostgreSQL
+Query Pipeline
+User types a question in the chat interface
+Question is sent to the FastAPI backend
+Claude agent receives the question and decides what tools to call
+Agent calls search_memories tool with a semantic query
+ChromaDB returns the top-K most similar chunks
+Agent optionally filters results using Neon metadata
+Agent synthesizes all retrieved context into a coherent, cited answer
+Answer + source citations are returned to the frontend
+3.2 The Agentic Loop (ReAct Pattern)
+The most technically impressive part of Smrtayah is the ReAct (Reasoning + Acting) agentic loop. Unlike a simple RAG pipeline that does one retrieval and one generation, the agent reasons about what to search, acts by calling tools, observes the results, and loops until it has enough context to give a great answer.
+The agent has access to the following tools:
+search_memories(query, top_k) — semantic search over ChromaDB
+filter_by_metadata(type, date_range, tags) — filter memories by metadata from Neon
+get_memory_detail(memory_id) — retrieve full content of a specific memory
+Claude's tool_use API feature powers this loop. The agent can call multiple tools in a single response turn, reason about the combined results, and decide whether to search again or answer directly.
+4. Database Design
+4.1 Neon PostgreSQL — Metadata Store
+Neon stores all the structured metadata about each saved memory. It enables fast filtering, browsing, and management of the memory collection without touching the vector database.
+memories table
+Column
+Type
+Description
+id
+UUID (PK)
+Unique identifier for each memory
+title
+TEXT
+Auto-generated or user-provided title
+source_url
+TEXT
+Original URL (if applicable)
+content_type
+ENUM
+note / article / pdf / youtube / podcast
+raw_text
+TEXT
+Full extracted text content
+tags
+TEXT[]
+Auto-generated and user-added tags
+thumbnail_url
+TEXT
+Thumbnail image URL (for videos/articles)
+created_at
+TIMESTAMP
+When the memory was saved
+chunk_count
+INTEGER
+Number of chunks stored in ChromaDB
+4.2 ChromaDB — Vector Store
+ChromaDB stores the actual vector embeddings of each text chunk. It is organized into a single collection called 'memories', with each document (chunk) linked back to its parent memory via the memory_id metadata field.
+memories collection (ChromaDB)
+Field
+Type
+Description
+id
+string
+Unique chunk ID (memory_id + chunk_index)
+embedding
+float[1024]
+voyage-2 vector for this chunk
+document
+string
+Original chunk text
+memory_id
+string
+Foreign key back to Neon memories.id
+chunk_index
+integer
+Position of this chunk in the original document
+content_type
+string
+Type of content for filtering
+5. Build Phases
+The project is divided into three phases, each delivering a working, demonstrable product. Each phase builds on the previous one.
+Phase 1 — Core RAG Pipeline
+Goal: A working system where you can save a note or article and ask questions about it.
+Set up FastAPI project structure
+Implement text chunker (chunker.py)
+Implement voyage-2 embedding wrapper (embedder.py)
+Set up ChromaDB locally (vector_store.py)
+Set up Neon PostgreSQL and create memories table
+Build /save endpoint — accepts text, chunks, embeds, stores
+Build /query endpoint — embeds question, retrieves chunks, returns answer via Claude
+Build basic React UI — text input to save, chat interface to query
+Phase 2 — Full Ingestion + Agentic Loop
+Goal: Support all content types and upgrade the query pipeline to a full ReAct agent.
+Add URL scraper (BeautifulSoup)
+Add PDF parser (PyPDF2)
+Add YouTube pipeline (yt-dlp + Whisper)
+Define Claude tools: search_memories, filter_by_metadata, get_memory_detail
+Implement ReAct agentic loop using Claude tool_use
+Add source citation to every answer
+Upgrade React UI — memory browser, content type icons, source display
+Phase 3 — Polish and Resume Polish
+Goal: Production-quality demo that looks great in an interview.
+Auto-tagging: agent generates tags for every saved memory
+Connection detection: agent finds related memories when you save something new
+Timeline view: browse all memories chronologically
+Neon DB branching demo: show how to safely test DB changes
+Deploy backend to Railway or Render
+Deploy frontend to Vercel
+Write README with architecture diagram
+6. Project Folder Structure
+smrtayah/
+├── backend/
+│   ├── main.py              # FastAPI app entry point
+│   ├── chunker.py           # Text splitting logic
+│   ├── embedder.py          # voyage-2 embedding wrapper
+│   ├── vector_store.py      # ChromaDB read/write
+│   ├── metadata_store.py    # Neon PostgreSQL queries
+│   ├── extractors/
+│   │   ├── url_extractor.py # BeautifulSoup scraper
+│   │   ├── pdf_extractor.py # PyPDF2 parser
+│   │   └── youtube_extractor.py  # yt-dlp + Whisper
+│   ├── agent/
+│   │   ├── tools.py         # Tool definitions for Claude
+│   │   └── react_loop.py    # ReAct agentic loop
+│   └── requirements.txt
+├── frontend/
+│   ├── src/
+│   │   ├── App.jsx
+│   │   ├── components/
+│   │   │   ├── ChatInterface.jsx
+│   │   │   ├── MemoryBrowser.jsx
+│   │   │   └── SaveMemory.jsx
+│   └── package.json
+└── README.md
+7. Resume Bullet Points
+These are ready-to-use bullet points for your Data Scientist / ML Engineer resume:
+Built Smrtayah — an agentic AI second brain that ingests YouTube videos, articles, PDFs, and notes into a semantic memory layer using RAG + Claude API + ChromaDB + Neon PostgreSQL
+Implemented a ReAct (Reasoning + Acting) agentic loop using Claude's tool_use API, enabling multi-step reasoning over a personal knowledge base
+Designed a multi-source ingestion pipeline using yt-dlp, Whisper, BeautifulSoup, and PyPDF2 with automatic chunking and voyage-2 vector embeddings
+Engineered a hybrid retrieval system combining semantic search (ChromaDB) with metadata filtering (Neon PostgreSQL) for precise, context-aware memory retrieval
+Deployed full-stack application with FastAPI backend and React frontend, supporting real-time conversational querying with source citations
+Smrtaयः  ·  स्मृतयः  ·  Memories
