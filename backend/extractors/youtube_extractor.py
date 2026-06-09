@@ -90,8 +90,7 @@ def extract_youtube(url: str) -> dict:
 
     # ── Retrieve transcript ──────────────────────────────────────
     try:
-        ytt_api = YouTubeTranscriptApi()
-        transcript_list = ytt_api.list(video_id)
+        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
 
         # Prefer manual transcripts over auto-generated
         transcript = None
