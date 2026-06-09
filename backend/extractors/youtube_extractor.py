@@ -80,6 +80,7 @@ def _generate_transcript_with_gemini(url: str, video_id: str) -> str:
         'outtmpl': audio_path,
         'quiet': True,
         'no_warnings': True,
+        'extractor_args': {'youtube': {'player_client': ['android', 'ios']}},
     }
     
     try:
