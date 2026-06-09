@@ -35,7 +35,7 @@ GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 
 app = FastAPI(
     title="Smrtayah API",
-    description="AI Second Brain — Save anything, remember everything.",
+    description="RAG-powered Personal Knowledge Assistant",
     version="1.0.0",
 )
 
@@ -222,7 +222,7 @@ async def query_memories(req: QueryRequest, current_user: dict = Depends(get_cur
     context = "\n\n---\n\n".join(context_parts)
 
     # 4. Build prompt and call Gemini
-    prompt = f"""You are Smrtayah, an intelligent AI second brain assistant. 
+    prompt = f"""You are Smrtayah, a RAG-powered Personal Knowledge Assistant. 
 You have access to the user's personal knowledge base below.
 
 RELEVANT MEMORIES:

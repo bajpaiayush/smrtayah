@@ -60,7 +60,7 @@ export default function Auth({ onLogin, api }) {
       <div className="auth-card">
         <div className="auth-header">
           <h1 className="auth-title">Smrtayah</h1>
-          <p className="auth-subtitle">Your AI Second Brain.</p>
+          <p className="auth-subtitle">RAG-powered Personal Knowledge Assistant</p>
         </div>
 
         <form onSubmit={handleSubmit} className="auth-form">
